@@ -1,0 +1,17 @@
+ORTHRUS: TOWARD EVOLUTIONARY AND FUNCTIONAL RNA FOUNDATIONAL MODELS
+===================================================================
+
+Abstract:
+---------
+- Heavy limitations on predicting key RNA properties, even in the face
+    of rapidly accumulating genomic data
+- There are many pretrained genomic foundation models BUT they are trained
+    using strategies borrowed from textual domains that DO NOT
+    leverage biological domain knowledge.
+- In response to this issue, Orthrus is created as an RNA foundation model 
+    (pretrained using a self-supervised contrastive learning objective 
+    with biological augmentations)
+- Orthrus maximizes embedding similarity between pairs of RNA transcripts from
+    orthologous genes in 400+ mammalian species.
+- Orthrus' representations outperform other foundation models on diff tasks and
+    requires ONLY A FRACTION of fine-tuning data. 

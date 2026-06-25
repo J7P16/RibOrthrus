@@ -1,0 +1,12 @@
+Goals for Today:
+----------------
+
+- Need to setup a sequence extractor from gencode.v48 reference (GenomeKit
+    doesn't provide v48 in their documentation)
+- Need to work on padding mechanism for sequence below/above 13,000 nucleotides
+- Develop new model to take in embeddings and predict ribosome
+    occupancy (must match exact input sequence length)
+- Write embedding update email to grad advisor
+- Finish iXnos training/tuning on new RiboBase data
+- Keep track of orthrus environment setup and dependencies by test creating
+    a new environment (for reproducibility)

@@ -1,0 +1,1 @@
+{"model_lr": 0.001, "model_weight_decay": 5e-05, "projection_head_lr": 0.001, "projection_head_weight_decay": 0.0001, "max_weight_decay": -1, "loss_fn": "dcl", "clipnorm": 5, "ortho_weight": 0.8, "warmup_steps": 2000.0}
