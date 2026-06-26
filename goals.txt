@@ -10,3 +10,11 @@ Goals for Today:
 - Finish iXnos training/tuning on new RiboBase data
 - Keep track of orthrus environment setup and dependencies by test creating
     a new environment (for reproducibility)
+
+- Must create a fresh and working Orthrus env in my vista machine and
+    keep track of my dependencies/commands
+
+ORTHRUS ENV SETUP COMMANDS/INSTALLATIONS:
+----------------------------------------
+conda install -c conda-forge mamba
+mamba env create -f env.yml
