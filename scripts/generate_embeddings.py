@@ -24,7 +24,7 @@ print("Frozen Orthrus Model Architecture and Layers:")
 print(model)
 print("\n")
 
-# generate embeddings
+# generate embedding for entire transcript
 transcripts = find_transcript_by_gene_name(genome, "BCL2L1")
 print(transcripts)
 print("\n")
@@ -36,28 +36,34 @@ sixt = sixt.to(device)
 print("Six-Track Encoding Input Shape:")
 print(sixt.shape)
 print("\n")
-#lengths = torch.tensor([sixt.shape[2]], device=device)
-#with torch.no_grad():
-#    embedding = model.representation(sixt, lengths)
-
-#print(embedding.shape)
-#print(embedding)
+lengths = torch.tensor([sixt.shape[2]], device=device)
 with torch.no_grad():
-    out = model(sixt)
+    embedding = model.representation(sixt, lengths)
+
+print("Singular Output Embedding Shape:")
+print(embedding.shape)
+print("\n")
+print("Embedding Contents:")
+print(embedding)
+print("\n")
+#with torch.no_grad():
+#    out = model(sixt)
 
 #print(type(out)) # <class 'torch.Tensor'>
-print("Orthrus Model Output Shape:")
-print(out.shape)
-print("\n")
+#print("Orthrus Model Output Shape:")
+#print(out.shape)
+#print("\n")
 
 print("Predictive Model Head Input Shape (Post-squeeze since there's only one transcript):")
-hidden = out.squeeze(0) # [2578, 512]
+#hidden = out.squeeze(0) # [1, 512]
+hidden = embedding
+#print(hidden.shape)
 print(hidden.shape)
 print("\n")
 
-SEQUENCE_LENGTH = hidden.shape[0]
+SEQUENCE_LENGTH = lengths[0]
 head = torch.nn.Linear(512, SEQUENCE_LENGTH).to(device)
-preds = head(hidden)
+preds = head(embedding)
 print("Predictive Model Head Architecture:")
 print(head)
 print("\n")
