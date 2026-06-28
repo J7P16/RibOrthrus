@@ -12,7 +12,9 @@ Goals for Today:
     a new environment (for reproducibility)
 
 - Must create a fresh and working Orthrus env in my vista machine and
-    keep track of my dependencies/commands
+    keep track of my dependencies/commands (failed yesterday -> will ask my advisor for help) (WIP)
+
+- 
 
 ORTHRUS ENV SETUP COMMANDS/INSTALLATIONS:
 ----------------------------------------
