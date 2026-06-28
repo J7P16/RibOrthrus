@@ -14,9 +14,12 @@ Goals for Today:
 - Must create a fresh and working Orthrus env in my vista machine and
     keep track of my dependencies/commands (failed yesterday -> will ask my advisor for help) (WIP)
 
-- 
+- Take a deep dive into mutinomial loss function for project! 
+	- After installing jaxtyping dependency, multimonial loss function looks healthy on various test cases.
+	- Need to see if I can connect python scripts by importing loss into main pipeline script.
 
 ORTHRUS ENV SETUP COMMANDS/INSTALLATIONS:
 ----------------------------------------
 conda install -c conda-forge mamba
 mamba env create -f env.yml
+pip install jaxtyping

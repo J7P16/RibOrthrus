@@ -2,6 +2,7 @@ import torch
 from genome_kit import Genome, Interval
 from transformers import AutoModel
 from orthrus.gk_utils import find_transcript_by_gene_name, create_six_track_encoding
+from loss import multinomial_loss
 
 # loading in a sample transcript
 genome = Genome("gencode.v29")
@@ -24,7 +25,7 @@ print("Frozen Orthrus Model Architecture and Layers:")
 print(model)
 print("\n")
 
-# generate embedding for entire transcript
+# generate embedding for entire transcrit
 transcripts = find_transcript_by_gene_name(genome, "BCL2L1")
 print(transcripts)
 print("\n")
@@ -76,3 +77,14 @@ print("\n")
 print("Predictive Model Head Output Shape:")
 print(preds.shape)
 print("\n")
+
+test = multinomial_loss(
+        y_true=torch.poisson(torch.ones(32, 128, 1) * 2.0), 
+        y_pred=torch.rand(32, 128, 1) * 3.0, 
+        mask=torch.ones(32, 128, 1, dtype=torch.bool),
+        multinomial_resolution=4,
+        positional_weight=0.281
+)
+print("Random General Test Case Output for Imported Multinomial Loss Function:")
+print(test)
+
