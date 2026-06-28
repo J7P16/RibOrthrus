@@ -55,10 +55,16 @@ hidden = out.squeeze(0) # [2578, 512]
 print(hidden.shape)
 print("\n")
 
-head = torch.nn.Linear(512, 25).to(device)
+SEQUENCE_LENGTH = hidden.shape[0]
+head = torch.nn.Linear(512, SEQUENCE_LENGTH).to(device)
 preds = head(hidden)
 print("Predictive Model Head Architecture:")
 print(head)
+print("\n")
+
+total_params = sum(p.numel() for p in head.parameters())
+print("Number of Predictive Model Head Parameters:")
+print(total_params)
 print("\n")
 
 print("Predictive Model Head Output Shape:")
