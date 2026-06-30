@@ -21,5 +21,17 @@ Goals for Today:
 ORTHRUS ENV SETUP COMMANDS/INSTALLATIONS:
 ----------------------------------------
 conda install -c conda-forge mamba
+<<<<<<< HEAD
 mamba env create -f env.yml
 pip install jaxtyping
+=======
+mamba env create -f env.yml (removed original pytorch-cuda=12.1 and cuda-toolkit=12.1 lines b/c of vista architecture)
+	- had to use conda instead of mamba on vista but not entirely too sure why
+conda activate orthrus
+pip install torch
+[access a compute node at this point]
+module load cuda
+which nvcc
+pip install causal_conv1d==1.2.0.post2 --no-build-isolation
+pip install mamba-ssm==1.2.0.post1 --no-cache-dir
+>>>>>>> 44ec0b4 (changed some files)
