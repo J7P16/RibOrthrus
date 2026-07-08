@@ -9,3 +9,4 @@ models/
 
 goals.txt
 debug.py
+scripts/debug.py
