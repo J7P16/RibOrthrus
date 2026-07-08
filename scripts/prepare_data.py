@@ -49,12 +49,6 @@ class MultiCellRiboDataset(Dataset):
             max_read = min(self.read_length_max, ribo.maximum_length)
             coverage = ribo.get_coverage(experiment, min_read, max_read, False)    
             
-            # Count-Per-Million (CPM) Normalization
-            """
-            library_size = sum(arr.sum() for arr in coverage.values())
-            scale = 1000000.0 / max(library_size, 1.0)
-            coverage = {tx: np.log1p(arr * scale) for tx, arr in coverage.items()}
-            """
             # log1p Normalization
             coverage = {tx: np.log1p(arr) for tx, arr in coverage.items()}
             
@@ -76,7 +70,8 @@ class MultiCellRiboDataset(Dataset):
                 common &= set(self.ribos[cell_line].transcript_names)
             transcript_ids = sorted(common) 
         self.transcript_ids = list(transcript_ids)
-        
+        print(f"Before GenomeKit filter: {len(self.transcript_ids)}")
+
         print("Building GenomeKit transcript set...")
         genome_tx_ids = {str(t.id) for t in Genome("gencode.v41").transcripts}
         valid = []
@@ -107,16 +102,14 @@ class MultiCellRiboDataset(Dataset):
             length_filtered.append(tx)
 
         self.transcript_ids = length_filtered
-
         print("Finished building GenomeKit transcript set!")
-        print(f"Before GenomeKit filter: {len(self.transcript_ids)}")
+        
         print(f"After GenomeKit filter: {len(self.transcript_ids)}")
         print("Example ribo IDs:", [str(x).split('|')[0] for x in self.transcript_ids[:5]])
-        print(f"Shared Transcripts: {len(self.transcript_ids)}")
         print(f"Loaded {len(self.cell_lines)} Cell Lines:")
         for cell_line in self.cell_lines:
             print(f"    {cell_line}: experiment={self.experiments[cell_line]}")
-        print(f"Output Channels: {len(self.cell_lines)}")
+        print(f"Total Output Channels: {2 * len(self.cell_lines)}")
     
     def __len__(self):
         return len(self.transcript_ids)
@@ -150,8 +143,7 @@ class MultiCellRiboDataset(Dataset):
             else:
                 try:
                     row = rnaseq_df.loc[(experiment, tx)]
-                    #rna_value = float(row.sum()) # UTR5 + CDS + UTR3
-                    # THIS NORMALIZATION STEP IS A MUST
+                    # THIS NORMALIZATION STEP IS PRETTY MUCH A MUST
                     rna_value = np.log1p(float(row.sum()))
                 except KeyError:
                     rna_value = 0.0

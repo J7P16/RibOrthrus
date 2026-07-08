@@ -10,7 +10,7 @@ class DilatedBlock(nn.Module):
     def __init__(self, ch, dilation, kernel=3, p=0.1, groups=8):
         super().__init__()
         pad = dilation * (kernel - 1) // 2
-        self.norm1 = nn.GroupNorm(groups, ch)     # GroupNorm: safe with small batches
+        self.norm1 = nn.GroupNorm(groups, ch)
         self.conv  = nn.Conv1d(ch, ch, kernel, padding=pad, dilation=dilation)
         self.norm2 = nn.GroupNorm(groups, ch)
         self.pointwise = nn.Conv1d(ch, ch, 1)
@@ -107,13 +107,13 @@ class PredictionHead(pl.LightningModule):
         preds = torch.cat(self.train_preds)
         targets = torch.cat(self.train_targets)
 
-        rpf_pcc = pearson_corrcoef(preds[..., 0::2].flatten(), targets[..., 0::2].flatten())
+        ribo_pcc = pearson_corrcoef(preds[..., 0::2].flatten(), targets[..., 0::2].flatten())
         rna_pcc = pearson_corrcoef(preds[..., 1::2].flatten(), targets[..., 1::2].flatten())
         pcc = pearson_corrcoef(preds.flatten(), targets.flatten())
 
         self.log("train_pcc", pcc, prog_bar=True)
         self.log("train_rna_pcc", rna_pcc, prog_bar=True)
-        self.log("train_rpf_pcc", rpf_pcc, prog_bar=True)
+        self.log("train_ribo_pcc", ribo_pcc, prog_bar=True)
 
         self.train_preds.clear()
         self.train_targets.clear()
@@ -125,12 +125,12 @@ class PredictionHead(pl.LightningModule):
         preds = torch.cat(self.val_preds)
         targets = torch.cat(self.val_targets)
 
-        rpf_pcc = pearson_corrcoef(preds[..., 0::2].flatten(), targets[..., 0::2].flatten())
+        ribo_pcc = pearson_corrcoef(preds[..., 0::2].flatten(), targets[..., 0::2].flatten())
         rna_pcc = pearson_corrcoef(preds[..., 1::2].flatten(), targets[..., 1::2].flatten())
         pcc = pearson_corrcoef(preds.flatten(), targets.flatten())
         self.log("val_pcc", pcc, prog_bar=True)
         self.log("val_rna_pcc", rna_pcc, prog_bar=True)
-        self.log("val_rpf_pcc", rpf_pcc, prog_bar=True)
+        self.log("val_ribo_pcc", ribo_pcc, prog_bar=True)
 
         self.val_preds.clear()
         self.val_targets.clear()

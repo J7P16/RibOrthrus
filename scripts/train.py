@@ -1,10 +1,10 @@
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-from prepare_ribo_data import MultiCellRiboDataset
+from prepare_data import MultiCellRiboDataset
 from torch.utils.data import random_split, DataLoader
 import torch
-from Collators import PrecomputedEmbeddingCollator, OrthrusCollator
+from collators import PrecomputedEmbeddingCollator
 from models import PredictionHead
 import lightning.pytorch as pl
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
