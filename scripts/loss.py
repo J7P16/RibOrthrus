@@ -2,7 +2,7 @@ import torch
 from torch import Tensor
 from jaxtyping import Bool, Float
 
-def _safe_masked_mean(x: Float[Tensor, "*dims"], mask: Bool[Tensor, "#*dims"]) -> Float[Tensor, ""]:
+def _safe_masked_mean(x: Float[Tensor, "*dims"], mask: Bool[Tensor, "#*dims"] | None = None) -> Float[Tensor, ""]:
     """Mean with masking that stays finite when everything is masked."""
     if mask is None:
         mask_f = torch.ones_like(x, dtype=torch.float32)
@@ -16,7 +16,7 @@ def _safe_masked_mean(x: Float[Tensor, "*dims"], mask: Bool[Tensor, "#*dims"]) -
     return masked.sum(dtype=torch.float32) / denom
 
 
-def poisson_loss(*, y_true: Float[Tensor, "*dims"], y_pred: Float[Tensor, "*dims"], mask: Bool[Tensor, "#*dims"]) -> Float[Tensor, ""]:
+def poisson_loss(*, y_true: Float[Tensor, "*dims"], y_pred: Float[Tensor, "*dims"], mask: Bool[Tensor, "#*dims"] | None = None) -> Float[Tensor, ""]:
     """Poisson loss implemented in torch."""
     y_true = torch.abs(y_true).to(torch.float32)
     y_pred = y_pred.to(torch.float32)
@@ -27,7 +27,7 @@ def poisson_loss(*, y_true: Float[Tensor, "*dims"], y_pred: Float[Tensor, "*dims
     return _safe_masked_mean(loss, mask)
 
 
-def multinomial_loss(*, y_true: Float[Tensor, "... 1 d"], y_pred: Float[Tensor, "... 1 d"], mask: Bool[Tensor, "... 1 d"], multinomial_resolution: int, positional_weight: float) -> dict[str, Tensor]:
+def multinomial_loss(*, y_true: Float[Tensor, "... 1 d"], y_pred: Float[Tensor, "... 1 d"], mask: Bool[Tensor, "... 1 d"] | None = None, multinomial_resolution: int, positional_weight: float) -> dict[str, Tensor]:
     """Multinomial + Poisson loss for count predictions using torch."""
     if y_true.shape != y_pred.shape:
         raise ValueError(f"y_true shape {y_true.shape} doesnot match y_pred shape {y_pred.shape}.")
@@ -40,6 +40,9 @@ def multinomial_loss(*, y_true: Float[Tensor, "... 1 d"], y_pred: Float[Tensor, 
     y_pred = y_pred.to(torch.float32)
     mask = mask.to(device=y_true.device)
     
+    if mask.ndim == 2:
+        mask = mask.unsqueeze(-1)
+
     y_true = y_true * mask
     y_pred = y_pred * mask
 
