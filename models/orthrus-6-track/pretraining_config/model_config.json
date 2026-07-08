@@ -1,1 +1,0 @@
-{"model_class": "ssm", "ssm_model_dim": 512, "ssm_n_layers": 6, "n_tracks": 6, "predict_splice_codon": false, "predict_masked": false, "bidirectional": null, "bidirectional_strategy": "add", "bidirectional_weight_tie": true, "gradient_checkpointing": false}

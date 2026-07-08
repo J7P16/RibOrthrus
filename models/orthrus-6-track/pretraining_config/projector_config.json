@@ -1,1 +1,0 @@
-{"projection_body": 512, "projection_head_size": 128, "projection_norm_type": "batchnorm", "projection_head_num": 4, "representation_dim": 512}
