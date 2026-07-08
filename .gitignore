@@ -8,3 +8,4 @@ embeddings/
 models/
 
 goals.txt
+debug.py
