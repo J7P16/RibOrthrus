@@ -1,1 +1,1 @@
-# RibOrthrus: A whole-transcript prediction pipeline of RNA-seq and Ribo-seq coverage
+# RibOrthrus: A whole-transcript deep learning pipeline to predict RNA-seq and Ribo-seq coverage
