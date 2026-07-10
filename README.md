@@ -6,4 +6,16 @@
 
 - To install project requirements:
   ```bash
+  git clone https://github.com/bowang-lab/Orthrus.git
+  cd [orthrus project directory]
+  mamba env create -f env.yml
+  conda activate orthrus
+  pip install causal_conv1d==1.2.0.post2
+  pip install mamba-ssm==1.2.0.post1 --no-cache-dir
+  pip install -e .
+  cd ../
+  git clone [riborthrus git link]
+  pip install jaxtyping
+  pip install ribopy
+  pip install lightning
   ```
