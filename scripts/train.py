@@ -15,7 +15,7 @@ def main():
 
     full_dataset = MultiCellRiboDataset(
         ribo_dir=ribo_dir,
-        read_length_min=22,
+        read_length_min=26,
         read_length_max=33,
         normalize_per_track=False,
     )
@@ -51,7 +51,7 @@ def main():
         num_workers=8,
     )
     system = PredictionHead(
-        number_of_cell_lines=number_of_cell_lines,
+        number_of_cell_lines=24,
         #lr=3e-4,
         lr=0.01,
         multinomial_resolution=fixed_sequence_length // 8,

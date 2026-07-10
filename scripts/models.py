@@ -9,32 +9,43 @@ from loss import multinomial_loss
 class DilatedBlock(nn.Module):
     def __init__(self, ch, dilation, kernel=3, p=0.1, groups=8):
         super().__init__()
-        pad = dilation * (kernel - 1) // 2
-        self.norm1 = nn.GroupNorm(groups, ch)
-        self.conv  = nn.Conv1d(ch, ch, kernel, padding=pad, dilation=dilation)
-        self.norm2 = nn.GroupNorm(groups, ch)
+        self.norm = nn.GroupNorm(groups, ch)
+        self.conv  = nn.Conv1d(ch, ch, kernel, padding=dilation * (kernel - 1) // 2, dilation=dilation)
         self.pointwise = nn.Conv1d(ch, ch, 1)
         self.drop = nn.Dropout(p)
-    def forward(self, x):                          # [B, ch, L]
-        h = self.conv(F.gelu(self.norm1(x)))
-        h = self.pointwise(F.gelu(self.norm2(h)))
-        return x + self.drop(h)                    # length preserved
+        
+    def forward(self, x):
+        h = self.norm(x)
+        h = F.gelu(h)
+        h = self.conv(h)
+        h = self.norm(h)
+        h = F.gelu(h)
+        h = self.pointwise(h)
+        h = self.drop(h)
+        return x + h             
 
 class DenseRateHead(nn.Module):
-    """[B, L, 512] Orthrus embeddings -> [B, L, 24] non-negative rate/count."""
-    def __init__(self, d_in=512, ch=256, n_blocks=5, n_cell_lines=24, p=0.1):
+    def __init__(self, d_in=512, n_blocks=5, n_cell_lines=24, p=0.1):
         super().__init__()
-        self.proj_in  = nn.Conv1d(d_in, ch, 1)
-        self.tower    = nn.ModuleList(
-            DilatedBlock(ch, dilation=2**i, p=p) for i in range(n_blocks))
-        self.proj_out = nn.Conv1d(ch, n_cell_lines, 1)
-    def forward(self, x):              # x: [B, L, 512]
-        x = x.transpose(1, 2)          # [B, 512, L]
-        x = self.proj_in(x)
+        self.n_cell_lines = n_cell_lines
+        self.proj_in = nn.Conv1d(d_in, 32, 1)
+        self.tower = nn.ModuleList(DilatedBlock(32, dilation=2**i, p=p) for i in range(n_blocks))
+        self.ribo_head = nn.Conv1d(32, n_cell_lines, 1)
+        self.rna_head = nn.Conv1d(32, n_cell_lines, 1)
+
+    def forward(self, x):       
+        x = x.transpose(1, 2)          
+        x = self.proj_in(x)          
         for blk in self.tower:
-            x = blk(x)
-        x = self.proj_out(x)           # [B, 24, L]
-        return F.softplus(x.transpose(1, 2))   # [B, L, 24], >= 0
+            x = blk(x)                 
+        ribo_out = self.ribo_head(x)
+        rna_out = self.rna_head(x)
+        
+        x = torch.stack([ribo_out, rna_out], dim=2)
+        x = x.permute(0, 3, 1, 2)
+        x = x.reshape(x.shape[0], x.shape[1], 2 * self.n_cell_lines)
+        x = F.softplus(x)
+        return x
 
 class PredictionHead(pl.LightningModule):
     def __init__(
@@ -46,7 +57,7 @@ class PredictionHead(pl.LightningModule):
     ):
         super().__init__()
         self.save_hyperparameters()
-        self.head = DenseRateHead(d_in=512, ch=256, n_blocks=5, n_cell_lines=48, p=0.1)
+        self.head = DenseRateHead(d_in=512, n_blocks=5, n_cell_lines=number_of_cell_lines, p=0.1)
 
         self.train_preds = []
         self.train_targets = []
@@ -54,8 +65,7 @@ class PredictionHead(pl.LightningModule):
         self.val_targets = []
 
     def forward(self, x, lengths):
-        y_pred = self.head(x)
-        return y_pred
+        return self.head(x)
 
     def shared_step(self, batch, stage: str):
         x = batch["x"]
@@ -77,7 +87,6 @@ class PredictionHead(pl.LightningModule):
 
         flat_pred = y_pred[expanded_mask].detach().cpu()
         flat_true = y_true[expanded_mask].detach().cpu()
-
         if stage == "train":
             self.train_preds.append(flat_pred)
             self.train_targets.append(flat_true)
@@ -98,8 +107,8 @@ class PredictionHead(pl.LightningModule):
         return self.shared_step(batch, "train")
 
     def validation_step(self, batch, batch_idx):
-        self.shared_step(batch, "val")
-
+        return self.shared_step(batch, "val")
+    
     def on_train_epoch_end(self):
         if len(self.train_preds) == 0:
             return

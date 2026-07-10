@@ -82,26 +82,6 @@ class MultiCellRiboDataset(Dataset):
         self.transcript_ids = valid
 
         max_transcript_len = 20000
-
-        length_filtered = []
-        skipped_long = 0
-
-        for tx in self.transcript_ids:
-            lengths = [
-                self.transcript_lengths[cell_line][tx]
-                for cell_line in self.cell_lines
-                if tx in self.transcript_lengths[cell_line]
-            ]
-
-            L = max(lengths)
-
-            if L > max_transcript_len:
-                skipped_long += 1
-                continue
-
-            length_filtered.append(tx)
-
-        self.transcript_ids = length_filtered
         print("Finished building GenomeKit transcript set!")
         
         print(f"After GenomeKit filter: {len(self.transcript_ids)}")

@@ -85,12 +85,3 @@ def multinomial_loss(*, y_true: Float[Tensor, "... 1 d"], y_pred: Float[Tensor, 
         "max_preds": torch.max(y_pred),
         "max_targets": torch.max(y_true).to(torch.float32)
     }
-
-#test = multinomial_loss(
-#        y_true=torch.poisson(torch.ones(32, 128, 1) * 2.0), 
-#        y_pred=torch.rand(32, 128, 1) * 3.0, 
-#        mask=torch.ones(32, 128, 1, dtype=torch.bool),
-#        multinomial_resolution=4,
-#        positional_weight=0.281
-#)
-#print(test)
