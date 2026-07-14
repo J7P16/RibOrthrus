@@ -26,12 +26,10 @@ class MultiCellRiboDataset(Dataset):
             read_length_min: int, 
             read_length_max: int,
             transcript_ids: Optional[Sequence[str]]=None,
-            normalize_per_track: bool=False
     ):
         self.ribo_dir = Path(ribo_dir)
         self.read_length_min = read_length_min
         self.read_length_max = read_length_max
-        self.normalize_per_track = normalize_per_track
         self.ribo_paths = sorted(self.ribo_dir.glob("*.ribo"))
         self.cell_lines = [path.stem for path in self.ribo_paths]
         
@@ -82,6 +80,8 @@ class MultiCellRiboDataset(Dataset):
         self.transcript_ids = valid
 
         max_transcript_len = 20000
+        
+
         print("Finished building GenomeKit transcript set!")
         
         print(f"After GenomeKit filter: {len(self.transcript_ids)}")
@@ -93,7 +93,7 @@ class MultiCellRiboDataset(Dataset):
     
     def __len__(self):
         return len(self.transcript_ids)
-    
+     
     def __getitem__(self, index):
         tx = self.transcript_ids[index]
         tracks = []
@@ -106,12 +106,7 @@ class MultiCellRiboDataset(Dataset):
             
             if length is None:
                 length = rpf.numel()
-
-            if self.normalize_per_track:
-                total = rpf.sum()
-                if total > 0:
-                    rpf = rpf / total
-            
+ 
             # First Track: RPF nucleotide coverage
             track_ribo = rpf # First Track - RPF coverage    
             
@@ -132,7 +127,9 @@ class MultiCellRiboDataset(Dataset):
             tracks.extend([track_ribo, track_rna])
 
         y_true = torch.stack(tracks, dim=-1)
-
+    
+        enst_id = str(tx).split("|")[0]
+        
         return {
             "transcript_id": tx,
             "y_true": y_true,

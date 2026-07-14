@@ -22,17 +22,29 @@ class PrecomputedEmbeddingCollator:
             saved = torch.load(path, map_location="cpu", weights_only=False)
 
             hidden = saved["embedding"].float()  # [L, 512]
-            y = item["y_true"]
+            y = item["y_true"].float()
 
             fixed_len = self.fixed_sequence_length
             L = y.shape[0]
             true_len = min(L, fixed_len)
             
+            hidden = hidden[:fixed_len]
+            y = y[:fixed_len]
+            
+            hidden_pad = fixed_len - hidden.shape[0]
+            if hidden_pad > 0:
+                hidden = nn.functional.pad(hidden, (0, 0, 0, hidden_pad))
+            y_pad = fixed_len - y.shape[0]
+            if y_pad > 0:
+                y = nn.functional.pad(y, (0, 0, 0, y_pad))
+
+            """
             if L > fixed_len:
                 y = y[:fixed_len]
             else:
                 pad_len = fixed_len - L
                 y = nn.functional.pad(y, (0, 0, 0, pad_len))
+            """
 
             mask = torch.zeros(fixed_len, dtype=torch.bool)
             mask[:true_len] = True

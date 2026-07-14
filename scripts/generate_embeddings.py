@@ -8,26 +8,27 @@ from genome_kit import Genome, Interval
 from transformers import AutoModel
 from orthrus.gk_utils import find_transcript_by_gene_name, create_six_track_encoding
 from prepare_data import MultiCellRiboDataset
+import argparse
 
-def main():
+def main(args):
     ribo_dir = "data"
     out_dir = "embeddings"
-    genome_name = "gencode.v41"
-    fixed_sequence_length = 16384
+    genome_name = args.reference
+    fixed_sequence_length = args.seq_len
 
     os.makedirs(out_dir, exist_ok=True)
 
     dataset = MultiCellRiboDataset(
         ribo_dir=ribo_dir,
-        read_length_min=28,
-        read_length_max=28,
+        read_length_min=args.min_read,
+        read_length_max=args.max_read,
         normalize_per_track=False,
     )
 
     genome = Genome(genome_name)
 
     model = AutoModel.from_pretrained(
-        "antichronology/orthrus-6-track",
+        "antichronology/orthrus-mlm-6-track",
         trust_remote_code=True,
         torch_dtype="auto",
     )
@@ -78,4 +79,18 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    
+    parser = argparse.ArgumentParser(description='RibOrthrus')
+
+    parser.add_argument("--assembly", dest="reference", default="gencode.v41",
+                        help="Genome Reference for Obtaining Sequences")
+    parser.add_argument("--seq-len", dest="seq_len", default=16384,
+                        type=int, help="Fixed Sequence Length for Training (Must be Divisible by 8!)")
+    parser.add_argument("--min-read", dest="min_read", default=26,
+                        type=int, help="Minimum Read Length in Training Data")
+    parser.add_argument("--max-read", dest="max_read", default=33,
+                        type=int, help="Maximum Read Length in Training Data")
+
+    args = parser.parse_args()
+
+    main(args)
