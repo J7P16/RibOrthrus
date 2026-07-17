@@ -1,12 +1,8 @@
 .env
-*.pyc
 __pycache__/
-*.egg-info/
 lightning_logs/
 data/
 embeddings/
 models/
-
 goals.txt
-debug.py
 scripts/debug.py

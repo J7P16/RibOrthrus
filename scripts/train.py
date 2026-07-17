@@ -4,36 +4,38 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 from prepare_data import MultiCellRiboDataset
 from torch.utils.data import random_split, DataLoader
 import torch
-from collators import PrecomputedEmbeddingCollator
-from models import PredictionHead
+from collators import PrecomputedEmbeddingCollator, FineTuneCollator
+from models import RibOrthrus
 import lightning.pytorch as pl
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 import argparse
+from genome_kit import Genome
 
 def main(args):
-    ribo_dir = "data"
-
     full_dataset = MultiCellRiboDataset(
-        ribo_dir=ribo_dir,
+        ribo_dir="data",
         read_length_min=args.min_read,
         read_length_max=args.max_read,
     )
 
-    number_of_cell_lines = len(full_dataset.cell_lines)
-
-    train_size = int(0.8 * len(full_dataset))
-    val_size = len(full_dataset) - train_size
-    
+    train_size = int(args.train_split * len(full_dataset))
+    val_size = len(full_dataset) - train_size    
     train_dataset, val_dataset = random_split(
         full_dataset,
         [train_size, val_size],
         generator=torch.Generator().manual_seed(args.manual_seed),
     )
-    fixed_sequence_length = args.seq_len 
-    collate_fn = PrecomputedEmbeddingCollator(
-        embedding_dir="embeddings", 
-        fixed_sequence_length=fixed_sequence_length
-    )
+    
+    if args.fine_tune:
+        collate_fn = FineTuneCollator(
+            genome=Genome("gencode.v41"), 
+            fixed_sequence_length=args.seq_len,
+        )
+    else:
+        collate_fn = PrecomputedEmbeddingCollator(
+            embedding_dir="embeddings",
+            fixed_sequence_length=args.seq_len,
+        )
     
     train_loader = DataLoader(
         train_dataset,
@@ -49,12 +51,14 @@ def main(args):
         collate_fn=collate_fn,
         num_workers=args.num_workers,
     )
-    system = PredictionHead(
-        number_of_cell_lines=number_of_cell_lines,
+    system = RibOrthrus(
+        num_cell_lines=len(full_dataset.cell_lines),
         lr=args.learning_rate,
-        multinomial_resolution=fixed_sequence_length // 8,
+        multinomial_resolution=args.seq_len // 8,
         positional_weight=5.0,
+        fine_tune=args.fine_tune,
     )
+    
     trainer = pl.Trainer(
         callbacks=[EarlyStopping(monitor="val_ribo_pcc", mode="max", patience=args.patience)],
         max_epochs=args.max_epochs,
@@ -78,6 +82,8 @@ if __name__ == "__main__":
                         help="Specific Task for RibOrthrus")
     
     # Training Parameters
+    parser.add_argument("--train-split", dest="train_split", default=0.8,
+                        type=float, help="Train/Test Split for Training Session")
     parser.add_argument("--max-epochs", dest="max_epochs", default=200,
                         type=int, help="Max Epochs for Training")
     parser.add_argument("--patience", dest="patience", default=8,
@@ -90,6 +96,8 @@ if __name__ == "__main__":
                         type=int, help="Minimum Read Length in Training Data")
     parser.add_argument("--max-read", dest="max_read", default=33,
                         type=int, help="Maximum Read Length in Training Data")
+    parser.add_argument("--fine-tune", dest="fine_tune", action="store_true",
+                        help="Enable LoRA fine-tuning of Orthrus")
 
     # Dataloader Parameters
     parser.add_argument("--batch-size", dest="batch_size", default=32,

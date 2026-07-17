@@ -68,8 +68,8 @@ class MultiCellRiboDataset(Dataset):
                 common &= set(self.ribos[cell_line].transcript_names)
             transcript_ids = sorted(common) 
         self.transcript_ids = list(transcript_ids)
+        
         print(f"Before GenomeKit filter: {len(self.transcript_ids)}")
-
         print("Building GenomeKit transcript set...")
         genome_tx_ids = {str(t.id) for t in Genome("gencode.v41").transcripts}
         valid = []
@@ -78,13 +78,9 @@ class MultiCellRiboDataset(Dataset):
             if enst_id in genome_tx_ids:
                 valid.append(tx)
         self.transcript_ids = valid
-
-        max_transcript_len = 20000
-        
-
         print("Finished building GenomeKit transcript set!")
-        
         print(f"After GenomeKit filter: {len(self.transcript_ids)}")
+        
         print("Example ribo IDs:", [str(x).split('|')[0] for x in self.transcript_ids[:5]])
         print(f"Loaded {len(self.cell_lines)} Cell Lines:")
         for cell_line in self.cell_lines:
@@ -120,6 +116,7 @@ class MultiCellRiboDataset(Dataset):
                     row = rnaseq_df.loc[(experiment, tx)]
                     # THIS NORMALIZATION STEP IS PRETTY MUCH A MUST
                     rna_value = np.log1p(float(row.sum()))
+                    #rna_value = float(row.sum())
                 except KeyError:
                     rna_value = 0.0
             track_rna = torch.full_like(rpf, rna_value)
