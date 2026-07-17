@@ -48,7 +48,7 @@ class MultiCellRiboDataset(Dataset):
             coverage = ribo.get_coverage(experiment, min_read, max_read, False)    
             
             # log1p Normalization
-            coverage = {tx: np.log1p(arr) for tx, arr in coverage.items()}
+            #coverage = {tx: np.log1p(arr) for tx, arr in coverage.items()}
             
             if ribo.has_rnaseq(experiment):
                 rnaseq = ribo.get_rnaseq(experiment)

@@ -7,6 +7,7 @@ from torchmetrics.functional import pearson_corrcoef, spearman_corrcoef
 from loss import multinomial_loss
 from transformers import AutoModel
 from peft import LoraConfig, get_peft_model
+from typing import Sequence
 
 class DilatedConvBlock(nn.Module):
     def __init__(
@@ -66,11 +67,11 @@ class PredictionHead(nn.Module):
             in_channels=in_channels, 
             out_channels=tower_channels, 
             kernel_size=1,
-        )
+            )
         self.dilation_tower = nn.ModuleList(
             [
                 DilatedConvBlock(
-                    num_groups=8,
+                    num_groups=1,
                     num_channels=tower_channels, 
                     kernel_size=3,
                     dilation=2**i, 
@@ -131,6 +132,8 @@ class RibOrthrus(pl.LightningModule):
     def __init__(
         self,
         num_cell_lines: int,
+        cell_lines: Sequence[str] | None = None,
+        inspect_cell_line: str | None = None,
         lr: float = 1e-3,
         orthrus_lr: float = 1e-5,
         multinomial_resolution: int = 1,
@@ -146,6 +149,9 @@ class RibOrthrus(pl.LightningModule):
                 print(name, module)
         """
         self.fine_tune = fine_tune
+        self.cell_lines = list(cell_lines or [])
+        self.inspect_cell_line = inspect_cell_line
+        self.inspect_cell_index = self._resolve_cell_line_index(inspect_cell_line)
         self.orthrus = None
         if self.fine_tune:
             self.orthrus = get_peft_model(
@@ -164,12 +170,28 @@ class RibOrthrus(pl.LightningModule):
             ) 
         self.head = PredictionHead(
             in_channels=512,
-            tower_channels=64,
-            num_blocks=5, 
+            tower_channels=128,
+            num_blocks=7, 
             num_cell_lines=num_cell_lines, 
-            dropout=0.1
+            dropout=0.2
         )
          
+    def _resolve_cell_line_index(self, cell_line: str | None) -> int | None:
+        if cell_line is None or not self.cell_lines:
+            return None
+
+        lower_cell_line = cell_line.lower()
+        for index, candidate in enumerate(self.cell_lines):
+            if candidate.lower() == lower_cell_line:
+                return index
+
+        for index, candidate in enumerate(self.cell_lines):
+            if lower_cell_line in candidate.lower():
+                return index
+
+        print(f"Warning: {cell_line} not found in cell lines: {self.cell_lines}")
+        return None
+
     def forward(self, x):
         if self.orthrus is not None:
             x = self.orthrus(x)
@@ -185,6 +207,7 @@ class RibOrthrus(pl.LightningModule):
         y_pred = self.forward(x)
         y_true = batch["y_true"] 
         batch_size = x.size(0)
+        
         loss_dict = multinomial_loss(
             y_true=y_true,
             y_pred=y_pred,
@@ -220,6 +243,37 @@ class RibOrthrus(pl.LightningModule):
             ribo_pred[ribo_mask].double(),
             ribo_true[ribo_mask].double(),
         )
+
+        if self.inspect_cell_index is not None:
+            ribo_channel = 2 * self.inspect_cell_index
+            rna_channel = ribo_channel + 1
+            inspected_mask = mask
+
+            inspected_ribo_pcc = pearson_corrcoef(
+                y_pred[..., ribo_channel][inspected_mask].double(),
+                y_true[..., ribo_channel][inspected_mask].double(),
+            )
+            inspected_rna_pcc = pearson_corrcoef(
+                y_pred[..., rna_channel][inspected_mask].double(),
+                y_true[..., rna_channel][inspected_mask].double(),
+            )
+
+            self.log(
+                f"{stage}_{self.inspect_cell_line}_ribo_pcc",
+                inspected_ribo_pcc.float(),
+                on_step=False,
+                on_epoch=True,
+                prog_bar=True,
+                batch_size=batch_size
+            )
+            self.log(
+                f"{stage}_{self.inspect_cell_line}_rna_pcc",
+                inspected_rna_pcc.float(),
+                on_step=False,
+                on_epoch=True,
+                prog_bar=True,
+                batch_size=batch_size
+            )
 
         self.log(
             f"{stage}_pcc",
@@ -265,10 +319,10 @@ class RibOrthrus(pl.LightningModule):
     
     def configure_optimizers(self):
         parameter_groups = [
-                {
-                    "params": self.head.parameters(), 
-                    "lr": self.hparams.lr
-                }
+            {
+                "params": self.head.parameters(), 
+                "lr": self.hparams.lr
+            }
         ]
         
         if self.orthrus is not None:
@@ -283,7 +337,7 @@ class RibOrthrus(pl.LightningModule):
             parameter_groups,
             betas=(0.9, 0.95),
             eps=1e-8,
-            weight_decay=1e-2
+            weight_decay=1e-3
         )
         
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(

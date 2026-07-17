@@ -53,6 +53,8 @@ def main(args):
     )
     system = RibOrthrus(
         num_cell_lines=len(full_dataset.cell_lines),
+        cell_lines=full_dataset.cell_lines,
+        inspect_cell_line=args.inspect_cell_line,
         lr=args.learning_rate,
         multinomial_resolution=args.seq_len // 8,
         positional_weight=5.0,
@@ -66,7 +68,7 @@ def main(args):
         devices=1,
         log_every_n_steps=10,
         gradient_clip_val=1.0,
-        accumulate_grad_batches=4,
+        accumulate_grad_batches=2,
     )
     trainer.fit(system, train_loader, val_loader)
 
@@ -98,6 +100,8 @@ if __name__ == "__main__":
                         type=int, help="Maximum Read Length in Training Data")
     parser.add_argument("--fine-tune", dest="fine_tune", action="store_true",
                         help="Enable LoRA fine-tuning of Orthrus")
+    parser.add_argument("--inspect-cell-line", dest="inspect_cell_line", default="HEK293",
+                        help="Cell line to log individual Ribo/RNA PCC metrics for")
 
     # Dataloader Parameters
     parser.add_argument("--batch-size", dest="batch_size", default=32,
