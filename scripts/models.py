@@ -60,6 +60,7 @@ class PredictionHead(nn.Module):
         num_blocks: int, 
         num_cell_lines: int, 
         dropout: float,
+        model_type: str,
     ):
         super().__init__()
         self.num_cell_lines = num_cell_lines
@@ -67,7 +68,8 @@ class PredictionHead(nn.Module):
             in_channels=in_channels, 
             out_channels=tower_channels, 
             kernel_size=1,
-            )
+        )
+        #self.input_projection = nn.Identity()
         self.dilation_tower = nn.ModuleList(
             [
                 DilatedConvBlock(
@@ -80,6 +82,7 @@ class PredictionHead(nn.Module):
                 for i in range(num_blocks)
             ]
         )
+        self.model_type = model_type
         self.ribo_head = nn.Sequential(
             nn.Conv1d(
                 in_channels=tower_channels,
@@ -103,15 +106,16 @@ class PredictionHead(nn.Module):
         x = x.reshape(x.shape[0], x.shape[1], 2 * self.num_cell_lines)
         return x
 
-    def forward(self, x):       
+    def forward(self, x):
         x = x.transpose(1, 2)         
         x = self.input_projection(x) 
         for block in self.dilation_tower:
             x = block(x)
-        ribo_out = self.ribo_head(x)
-        rna_out = self.rna_head(x)
-        x = self._concatenate_outputs(ribo_out, rna_out) 
-        return x
+        if self.model_type == "ribo":
+            return self.ribo_head(x).transpose(1, 2)
+        if self.model_type == "rna":
+            return self.rna_head(x).transpose(1, 2)
+        return self._concatenate_outputs(self.ribo_head(x), self.rna_head(x))
 
 class LinearModel(nn.Module):
     def __init__(self, d_in=512, n_cell_lines=24):
@@ -139,6 +143,7 @@ class RibOrthrus(pl.LightningModule):
         multinomial_resolution: int = 1,
         positional_weight: float = 5.0,
         fine_tune: bool = False,
+        model_type: str = "ribo",
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -173,7 +178,8 @@ class RibOrthrus(pl.LightningModule):
             tower_channels=128,
             num_blocks=7, 
             num_cell_lines=num_cell_lines, 
-            dropout=0.2
+            dropout=0.1,
+            model_type=model_type,
         )
          
     def _resolve_cell_line_index(self, cell_line: str | None) -> int | None:
@@ -221,59 +227,51 @@ class RibOrthrus(pl.LightningModule):
         valid_pred = y_pred[expanded_mask]
         valid_true = y_true[expanded_mask]
 
-        rna_pred = y_pred[..., 1::2]
-        rna_true = y_true[..., 1::2]
-        rna_mask = mask.unsqueeze(-1).expand_as(rna_pred)
-        
-        ribo_pred = y_pred[..., 0::2]
-        ribo_true = y_true[..., 0::2]
-        ribo_mask = mask.unsqueeze(-1).expand_as(ribo_pred)
-
         pcc = pearson_corrcoef(
             valid_pred.double(),
             valid_true.double(),
         )
 
-        rna_pcc = pearson_corrcoef(
-            rna_pred[rna_mask].double(),
-            rna_true[rna_mask].double(),
-        )
+        if self.hparams.model_type == "mixed":
+            target_channels = {"ribo": slice(0, None, 2), "rna": slice(1, None, 2)}
+        else:
+            target_channels = {self.hparams.model_type: slice(None)}
 
-        ribo_pcc = pearson_corrcoef(
-            ribo_pred[ribo_mask].double(),
-            ribo_true[ribo_mask].double(),
-        )
+        for target, channels in target_channels.items():
+            target_pred = y_pred[..., channels]
+            target_true = y_true[..., channels]
+            target_mask = mask.unsqueeze(-1).expand_as(target_pred)
+            target_pcc = pearson_corrcoef(
+                target_pred[target_mask].double(),
+                target_true[target_mask].double(),
+            )
+            self.log(
+                f"{stage}_{target}_pcc",
+                target_pcc.float(),
+                on_step=False,
+                on_epoch=True,
+                prog_bar=True,
+                batch_size=batch_size,
+            )
 
         if self.inspect_cell_index is not None:
-            ribo_channel = 2 * self.inspect_cell_index
-            rna_channel = ribo_channel + 1
             inspected_mask = mask
-
-            inspected_ribo_pcc = pearson_corrcoef(
-                y_pred[..., ribo_channel][inspected_mask].double(),
-                y_true[..., ribo_channel][inspected_mask].double(),
-            )
-            inspected_rna_pcc = pearson_corrcoef(
-                y_pred[..., rna_channel][inspected_mask].double(),
-                y_true[..., rna_channel][inspected_mask].double(),
-            )
-
-            self.log(
-                f"{stage}_{self.inspect_cell_line}_ribo_pcc",
-                inspected_ribo_pcc.float(),
-                on_step=False,
-                on_epoch=True,
-                prog_bar=True,
-                batch_size=batch_size
-            )
-            self.log(
-                f"{stage}_{self.inspect_cell_line}_rna_pcc",
-                inspected_rna_pcc.float(),
-                on_step=False,
-                on_epoch=True,
-                prog_bar=True,
-                batch_size=batch_size
-            )
+            for target, channels in target_channels.items():
+                channel = self.inspect_cell_index if self.hparams.model_type != "mixed" else (
+                    2 * self.inspect_cell_index + (target == "rna")
+                )
+                inspected_pcc = pearson_corrcoef(
+                    y_pred[..., channel][inspected_mask].double(),
+                    y_true[..., channel][inspected_mask].double(),
+                )
+                self.log(
+                    f"{stage}_{self.inspect_cell_line}_{target}_pcc",
+                    inspected_pcc.float(),
+                    on_step=False,
+                    on_epoch=True,
+                    prog_bar=True,
+                    batch_size=batch_size,
+                )
 
         self.log(
             f"{stage}_pcc",
@@ -284,24 +282,6 @@ class RibOrthrus(pl.LightningModule):
             batch_size=batch_size
         )
 
-        self.log(
-            f"{stage}_rna_pcc",
-            rna_pcc.float(),
-            on_step=False,
-            on_epoch=True,
-            prog_bar=True,
-            batch_size=batch_size
-        )
-
-        self.log(
-            f"{stage}_ribo_pcc",
-            ribo_pcc.float(),
-            on_step=False,
-            on_epoch=True,
-            prog_bar=True,
-            batch_size=batch_size
-        )
-        
         self.log(
             f"{stage}_loss",
             loss_dict["loss"],

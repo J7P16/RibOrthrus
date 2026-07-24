@@ -12,10 +12,15 @@ import argparse
 from genome_kit import Genome
 
 def main(args):
+    # Keep the data split, data-loader order, and model initialization stable
+    # between autoresearch experiments.
+    pl.seed_everything(args.manual_seed, workers=True)
+
     full_dataset = MultiCellRiboDataset(
         ribo_dir="data",
         read_length_min=args.min_read,
         read_length_max=args.max_read,
+        model_type=args.model_type,
     )
 
     train_size = int(args.train_split * len(full_dataset))
@@ -59,11 +64,19 @@ def main(args):
         multinomial_resolution=args.seq_len // 8,
         positional_weight=5.0,
         fine_tune=args.fine_tune,
+        model_type=args.model_type,
     )
     
     trainer = pl.Trainer(
-        callbacks=[EarlyStopping(monitor="val_ribo_pcc", mode="max", patience=args.patience)],
+        #callbacks=[EarlyStopping(
+        #    # Autoresearch optimizes the same quantity reported at the end of
+        #    # each run, so early stopping must use validation loss too.
+        #    monitor="val_loss",
+        #    mode="min",
+        #    patience=args.patience,
+        #)],
         max_epochs=args.max_epochs,
+        max_time=args.max_time,
         accelerator="gpu" if torch.cuda.is_available() else "cpu",
         devices=1,
         log_every_n_steps=10,
@@ -71,6 +84,11 @@ def main(args):
         accumulate_grad_batches=2,
     )
     trainer.fit(system, train_loader, val_loader)
+
+    val_loss = trainer.callback_metrics.get("val_loss")
+    if val_loss is None:
+        raise RuntimeError("Training finished without reporting val_loss")
+    print(f"AUTORESEARCH_METRIC val_loss={val_loss.detach().cpu().item():.8f}")
 
 if __name__ == "__main__":
     
@@ -81,13 +99,16 @@ if __name__ == "__main__":
     parser.add_argument("--assembly", dest="reference", default="gencode.v41",
                         help="Genome Reference for Obtaining Sequences")
     parser.add_argument("--model-type", dest="model_type", default="ribo",
-                        help="Specific Task for RibOrthrus")
+                        choices=("ribo", "rna", "mixed"),
+                        help="Prediction target: ribo, rna, or both (mixed)")
     
     # Training Parameters
     parser.add_argument("--train-split", dest="train_split", default=0.8,
                         type=float, help="Train/Test Split for Training Session")
     parser.add_argument("--max-epochs", dest="max_epochs", default=200,
                         type=int, help="Max Epochs for Training")
+    parser.add_argument("--max-time", dest="max_time", default="00:00:10:00",
+                        help="Fixed wall-clock budget per experiment (DD:HH:MM:SS)")
     parser.add_argument("--patience", dest="patience", default=8,
                         type=int, help="Patience for Training")
     parser.add_argument("--learning-rate", dest="learning_rate", default=0.001,

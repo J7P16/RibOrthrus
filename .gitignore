@@ -6,3 +6,6 @@ embeddings/
 models/
 goals.txt
 scripts/debug.py
+results.tsv
+run.log
+*.swp

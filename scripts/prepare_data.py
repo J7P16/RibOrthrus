@@ -9,28 +9,21 @@ import numpy as np
 
 class MultiCellRiboDataset(Dataset):
     """
-    Dataset that contains y_true tensors with shape: [L, 2 * NUM_OF_CELL_LINES] for each transcript 
-    For context, advisor told me there are two prediction tracks for the Transcriptome data.
-
-    Track Layout:
-        channel 0: cell_line_0 track_0
-        channel 1: cell_line_0 track_1
-        channel 2: cell_line_1 track_0
-        channel 3: cell_line_1 track_1
-
-    *** Just duplicating track_0 to track_1 until I email advisor for specifics of the outputs ***
+    Dataset containing Ribo, RNA, or interleaved Ribo/RNA targets for each transcript.
     """
     
     def __init__(self,
             ribo_dir: str, 
             read_length_min: int, 
             read_length_max: int,
+            model_type: str = "ribo",
             transcript_ids: Optional[Sequence[str]]=None,
     ):
         self.ribo_dir = Path(ribo_dir)
         self.read_length_min = read_length_min
         self.read_length_max = read_length_max
-        self.ribo_paths = sorted(self.ribo_dir.glob("*.ribo"))
+        self.model_type = model_type
+        self.ribo_paths = sorted(self.ribo_dir.glob("HEK293.ribo"))
         self.cell_lines = [path.stem for path in self.ribo_paths]
         
         # data/feature lists of our generated Dataset
@@ -49,7 +42,9 @@ class MultiCellRiboDataset(Dataset):
             
             # log1p Normalization
             #coverage = {tx: np.log1p(arr) for tx, arr in coverage.items()}
-            
+            #coverage = {tx: 30.0 * arr for tx, arr in coverage.items()}
+            coverage = {tx: arr for tx, arr in coverage.items()}
+
             if ribo.has_rnaseq(experiment):
                 rnaseq = ribo.get_rnaseq(experiment)
             else:
@@ -85,7 +80,8 @@ class MultiCellRiboDataset(Dataset):
         print(f"Loaded {len(self.cell_lines)} Cell Lines:")
         for cell_line in self.cell_lines:
             print(f"    {cell_line}: experiment={self.experiments[cell_line]}")
-        print(f"Total Output Channels: {2 * len(self.cell_lines)}")
+        output_channels = len(self.cell_lines) * (2 if self.model_type == "mixed" else 1)
+        print(f"Total Output Channels: {output_channels}")
     
     def __len__(self):
         return len(self.transcript_ids)
@@ -115,13 +111,18 @@ class MultiCellRiboDataset(Dataset):
                 try:
                     row = rnaseq_df.loc[(experiment, tx)]
                     # THIS NORMALIZATION STEP IS PRETTY MUCH A MUST
-                    rna_value = np.log1p(float(row.sum()))
-                    #rna_value = float(row.sum())
+                    #rna_value = np.log1p(float(row.sum()))
+                    rna_value = float(row.sum())
                 except KeyError:
                     rna_value = 0.0
             track_rna = torch.full_like(rpf, rna_value)
 
-            tracks.extend([track_ribo, track_rna])
+            if self.model_type == "ribo":
+                tracks.append(track_ribo)
+            elif self.model_type == "rna":
+                tracks.append(track_rna)
+            else:
+                tracks.extend([track_ribo, track_rna])
 
         y_true = torch.stack(tracks, dim=-1)
     
@@ -132,4 +133,3 @@ class MultiCellRiboDataset(Dataset):
             "y_true": y_true,
             "length": length
         }
-
