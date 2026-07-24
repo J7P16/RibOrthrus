@@ -33,13 +33,23 @@ To set up a new experiment, work with the user to:
 
 ## Experimentation
 
-Each experiment runs on one dedicated GPU. The training script has a fixed
-10-minute wall-clock budget (Lightning's `max_time`, excluding startup and
-shutdown):
+Each experiment runs as one Slurm job on the `gh` GPU partition. The training
+script has a fixed 10-minute wall-clock budget (Lightning's `max_time`,
+excluding startup and shutdown). Do not run `scripts/train.py` directly on a
+login node and do not modify `train.slurm`.
 
 ```bash
-conda activate orthrus
-python scripts/train.py --model-type ribo --max-time 00:00:10:00 > run.log 2>&1
+mkdir -p logs
+job_id=$(sbatch --parsable train.slurm)
+job_id=${job_id%%;*}
+echo "Submitted job ${job_id}"
+```
+
+Wait for the job to leave the Slurm queue, then use these files:
+
+```text
+logs/riborthrus_ft_<job_id>.out
+logs/riborthrus_ft_<job_id>.err
 ```
 
 The goal is simple: get the lowest final `val_loss`. Since the time budget is
@@ -85,10 +95,11 @@ At the end of a successful run, `scripts/train.py` prints:
 AUTORESEARCH_METRIC val_loss=<number>
 ```
 
-Extract it without flooding the context:
+Extract it without flooding the context, after substituting the submitted job
+ID:
 
 ```bash
-grep '^AUTORESEARCH_METRIC val_loss=' run.log
+grep '^AUTORESEARCH_METRIC val_loss=' logs/riborthrus_ft_<job_id>.out
 ```
 
 ## Logging results
@@ -125,15 +136,19 @@ LOOP FOREVER:
    hypothesis-driven change directly in `scripts/train.py` or `scripts/models.py`.
 3. Verify syntax: `python -m py_compile scripts/train.py scripts/models.py`.
 4. Commit only the two editable source files with a concise experiment message.
-5. Run the fixed-budget command above, redirecting output to `run.log`.
-6. Read the metric using the `grep` command above. If it is absent, inspect
-   `tail -n 50 run.log` for the failure.
+5. Submit the fixed-budget Slurm job above. Use `squeue -j <job_id>` to poll;
+   queued time does not count toward the experiment timeout.
+6. After the job completes, read the metric using the `grep` command above. If
+   it is absent, inspect `tail -n 50 logs/riborthrus_ft_<job_id>.out` and
+   `tail -n 50 logs/riborthrus_ft_<job_id>.err` for the failure.
 7. Append a TSV row.
 8. If `val_loss` is lower than the best comparable retained result, keep the
    commit and advance the branch. If it is equal or worse, restore the prior
    retained commit with `git reset --hard <retained-commit>`.
 
-**Timeout**: Each experiment should take ~10 minutes total (+ a few seconds for startup and eval overhead). If a run exceeds 15 minutes, kill it and treat it as a failure (discard and revert).
+**Timeout**: Once a job is running, training should take ~10 minutes (+ a few
+seconds for startup and evaluation). If it remains running beyond 15 minutes,
+use `scancel <job_id>`, log a crash, and restore the prior retained commit.
 
 **Crashes**: If a run crashes (OOM, or a bug, or etc.), use your judgment: If it's something dumb and easy to fix (e.g. a typo, a missing import), fix it and re-run. If the idea itself is fundamentally broken, just skip it, log "crash" as the status in the tsv, and move on.
 

@@ -9,3 +9,4 @@ scripts/debug.py
 results.tsv
 run.log
 *.swp
+logs/
